@@ -366,8 +366,8 @@ app.post('/api/match-result', async (req, res) => {
         let ownerCommission = 0;
 
         if (isGrandFinal) {
-            winnerPayout = 700;       
-            runnerUpPayout = 15;      
+            winnerPayout = 700;        
+            runnerUpPayout = 15;       
             ownerCommission = totalPool - (winnerPayout + runnerUpPayout);
             if (ownerCommission < 0) ownerCommission = 0; 
         } else {
