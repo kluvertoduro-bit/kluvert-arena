@@ -162,11 +162,13 @@ app.get('/stake-dash', async (req, res) => {
         input, select { width: 100%; padding: 12px; border-radius: 6px; border: 1px solid #30363d; background: #0d1117; color: #fff; box-sizing: border-box; font-size: 16px; }
         button { width: 100%; padding: 14px; background: #238636; color: #fff; border: none; border-radius: 6px; font-weight: bold; font-size: 16px; cursor: pointer; margin-top: 10px; }
         button:hover { background: #2ea043; }
+        .parsec-btn { background: #1f6feb; display: inline-block; padding: 16px; text-decoration: none; color: #fff; border-radius: 6px; font-weight: bold; margin-top: 15px; width: 100%; box-sizing: border-box; }
+        .parsec-btn:hover { background: #388bfd; }
         #status { margin-top: 15px; font-weight: bold; color: #e3b341; }
     </style>
 </head>
 <body>
-    <div class="card">
+    <div class="card" id="main-card">
         <h1>Player Stake Dashboard ⚽</h1>
         
         <div class="form-group">
@@ -230,7 +232,19 @@ app.get('/stake-dash', async (req, res) => {
 
                 if(data.success) {
                     statusDiv.style.color = '#3fb950';
-                    statusDiv.innerText = 'Prompt sent! Approve transaction on phone.';
+                    statusDiv.innerText = 'Payment successful! Loading game room...';
+                    
+                    setTimeout(() => {
+                        document.getElementById('main-card').innerHTML = \`
+                            <h1 style="color: #3fb950;">Stake Confirmed! ✅</h1>
+                            <p style="color: #8b949e; margin-bottom: 20px;">Your payment was successful. Click below to enter the Parsec game room and start playing!</p>
+                            
+                            <a href="https://parsec.gg/g/3HBcsMhvECjJ4WiHxGP9sHjlVZP/91bc0c8e/" class="parsec-btn" target="_blank">
+                                JOIN PARSEC GAME ROOM 🎮
+                            </a>
+                        \`;
+                    }, 2000);
+
                 } else {
                     statusDiv.style.color = '#f85149';
                     statusDiv.innerText = 'Failed: ' + (data.message || 'Check terminal log.');
