@@ -7,31 +7,31 @@ const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Setup SQLite Database for Dynamic Settings & Matches
+// Setup SQLite Database
 const db = new sqlite3.Database('./kluvert_arena.db', (err) => {
     if (err) console.error('Database opening error: ', err.message);
     else console.log('Connected to SQLite Database.');
 });
 
-// Initialize Settings Table (Stores dynamic stakes)
-db.run(`CREATE TABLE IF NOT EXISTS settings (
-    key TEXT PRIMARY KEY,
-    value TEXT
-)`);
+// CREATE TABLES & DEFAULT DATA SAFELY
+db.serialize(() => {
+    db.run(`CREATE TABLE IF NOT EXISTS settings (
+        key TEXT PRIMARY KEY,
+        value TEXT
+    )`);
 
-// Initialize Matches Table (Stores automated match tokens and states)
-db.run(`CREATE TABLE IF NOT EXISTS matches (
-    token TEXT PRIMARY KEY,
-    player1_phone TEXT,
-    player2_phone TEXT,
-    stake_amount REAL,
-    status TEXT,
-    winner_phone TEXT
-)`);
+    db.run(`CREATE TABLE IF NOT EXISTS matches (
+        token TEXT PRIMARY KEY,
+        player1_phone TEXT,
+        player2_phone TEXT,
+        stake_amount REAL,
+        status TEXT,
+        winner_phone TEXT
+    )`);
 
-// Default settings if none exist
-db.run(`INSERT OR IGNORE INTO settings (key, value) VALUES ('quick_stake', '4')`);
-db.run(`INSERT OR IGNORE INTO settings (key, value) VALUES ('cl_stake', '150')`);
+    db.run(`INSERT OR IGNORE INTO settings (key, value) VALUES ('quick_stake', '4')`);
+    db.run(`INSERT OR IGNORE INTO settings (key, value) VALUES ('cl_stake', '150')`);
+});
 
 // Helper: Get setting value from database
 function getSetting(key) {
@@ -241,7 +241,7 @@ app.get('/stake-dash', async (req, res) => {
 });
 
 // =================================================================
-// 3. SECURED ADMIN DASHBOARD ROUTE (Password Locked)
+// 3. SECURED ADMIN DASHBOARD ROUTE
 // =================================================================
 app.get('/admin', async (req, res) => {
     const secretPass = req.query.key;
@@ -300,7 +300,6 @@ app.get('/admin', async (req, res) => {
     `);
 });
 
-// Handle Admin Updates
 app.post('/admin/update', (req, res) => {
     const secretPass = req.query.key;
     if (secretPass !== 'kluvertSecret2026') {
@@ -337,7 +336,7 @@ app.post('/stake', async (req, res) => {
 });
 
 // =================================================================
-// 5. AUTOMATED MACHINE MATCH-RESULT & OWNER PROFIT SPLIT ENDPOINT
+// 5. AUTOMATED MATCH-RESULT ENDPOINT
 // =================================================================
 app.post('/api/match-result', async (req, res) => {
     const { matchToken, player1Score, player2Score, isPenalty, isGrandFinal, runnerUpNetwork } = req.body;
@@ -379,12 +378,6 @@ app.post('/api/match-result', async (req, res) => {
             if (updateErr) {
                 return res.status(500).json({ success: false, message: 'Database error saving match result.' });
             }
-
-            console.log(`\n[FINANCIAL SPLIT REPORT]:`);
-            console.log(`- Total Pool Collected: ${totalPool} GHS`);
-            console.log(`- Winner Payout: ${winnerPayout} GHS`);
-            console.log(`- Runner-Up Payout: ${runnerUpPayout} GHS`);
-            console.log(`- Owner Profit: ${ownerCommission} GHS 🚀`);
 
             const winnerPayoutResult = await sendWinnerPayout(winnerPhone, 'mtn', winnerPayout, "Kluvert Arena Champion");
 
