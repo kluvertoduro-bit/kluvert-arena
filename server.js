@@ -13,31 +13,29 @@ const db = new sqlite3.Database('./kluvert_arena.db', (err) => {
         console.error('Database opening error: ', err.message);
     } else {
         console.log('Connected to SQLite Database.');
-        initDatabase();
+        // Create tables immediately upon connection
+        db.serialize(() => {
+            db.run(`CREATE TABLE IF NOT EXISTS settings (
+                key TEXT PRIMARY KEY,
+                value TEXT
+            )`, (err) => {
+                if (!err) {
+                    db.run(`INSERT OR IGNORE INTO settings (key, value) VALUES ('quick_stake', '4')`);
+                    db.run(`INSERT OR IGNORE INTO settings (key, value) VALUES ('cl_stake', '150')`);
+                }
+            });
+
+            db.run(`CREATE TABLE IF NOT EXISTS matches (
+                token TEXT PRIMARY KEY,
+                player1_phone TEXT,
+                player2_phone TEXT,
+                stake_amount REAL,
+                status TEXT,
+                winner_phone TEXT
+            )`);
+        });
     }
 });
-
-// Explicitly create tables first, then insert default settings
-function initDatabase() {
-    db.run(`CREATE TABLE IF NOT EXISTS settings (
-        key TEXT PRIMARY KEY,
-        value TEXT
-    )`, (err) => {
-        if (!err) {
-            db.run(`INSERT OR IGNORE INTO settings (key, value) VALUES ('quick_stake', '4')`);
-            db.run(`INSERT OR IGNORE INTO settings (key, value) VALUES ('cl_stake', '150')`);
-        }
-    });
-
-    db.run(`CREATE TABLE IF NOT EXISTS matches (
-        token TEXT PRIMARY KEY,
-        player1_phone TEXT,
-        player2_phone TEXT,
-        stake_amount REAL,
-        status TEXT,
-        winner_phone TEXT
-    )`);
-}
 
 // Helper: Get setting value from database
 function getSetting(key) {
