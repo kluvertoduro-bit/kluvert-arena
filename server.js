@@ -72,7 +72,6 @@ async function triggerMomoPrompt(phone, network, amount) {
 // Helper: Automatically send payout to winner via Paystack Transfers
 async function sendWinnerPayout(phone, network, prizeAmount, playerName) {
   try {
-    // Step 1: Create a transfer recipient for the winner
     const recipientRes = await axios.post(
       'https://api.paystack.co/transferrecipient',
       {
@@ -92,12 +91,11 @@ async function sendWinnerPayout(phone, network, prizeAmount, playerName) {
 
     const recipientCode = recipientRes.data.data.recipient_code;
 
-    // Step 2: Initiate the transfer of winnings from your balance
     const transferRes = await axios.post(
       'https://api.paystack.co/transfer',
       {
         source: "balance",
-        amount: Math.round(prizeAmount * 100), // Convert to pesewas
+        amount: Math.round(prizeAmount * 100),
         recipient: recipientCode,
         reason: `Prize payout for winning match on Kluvert Arena`
       },
@@ -112,9 +110,33 @@ async function sendWinnerPayout(phone, network, prizeAmount, playerName) {
 }
 
 // =================================================================
-// 1. PLAYER WEBSITE FRONTEND (Dynamically fetches stakes)
+// 1. PUBLIC HOME PAGE
 // =================================================================
-app.get('/', async (req, res) => {
+app.get('/', (req, res) => {
+  res.send(`
+    <body style="background:#0d1117; color:#fff; font-family:Arial; text-align:center; padding-top:50px;">
+        <h1>⚽ KLUVERT SOCCER ARENA</h1>
+        <p style="color:#8b949e;">Welcome! Please use your authorized access link to enter the staking dashboard.</p>
+    </body>
+  `);
+});
+
+// =================================================================
+// 2. SECURED PLAYER STAKE DASHBOARD ROUTE
+// =================================================================
+app.get('/stake-dash', async (req, res) => {
+    const secretPass = req.query.key;
+    const STAKE_PASSWORD = 'kluvertStake2026';
+
+    if (secretPass !== STAKE_PASSWORD) {
+        return res.status(403).send(`
+            <body style="background:#0d1117; color:#fff; font-family:Arial; text-align:center; padding-top:50px;">
+                <h1 style="color:#f85149;">Access Denied! 🚫</h1>
+                <p style="color:#8b949e;">You are not authorized to view the player stake dashboard.</p>
+            </body>
+        `);
+    }
+
     const quickStake = await getSetting('quick_stake') || 4;
     const clStake = await getSetting('cl_stake') || 150;
 
@@ -124,7 +146,7 @@ app.get('/', async (req, res) => {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>KLUVERT SOCCER ARENA</title>
+    <title>KLUVERT SOCCER ARENA - Stake Dashboard</title>
     <style>
         body { font-family: Arial, sans-serif; background-color: #0d1117; color: #fff; text-align: center; padding: 40px 20px; }
         .card { background: #161b22; border: 1px solid #30363d; padding: 30px; border-radius: 12px; max-width: 450px; margin: 0 auto; box-shadow: 0 4px 12px rgba(0,0,0,0.5); }
@@ -134,14 +156,12 @@ app.get('/', async (req, res) => {
         input, select { width: 100%; padding: 12px; border-radius: 6px; border: 1px solid #30363d; background: #0d1117; color: #fff; box-sizing: border-box; font-size: 16px; }
         button { width: 100%; padding: 14px; background: #238636; color: #fff; border: none; border-radius: 6px; font-weight: bold; font-size: 16px; cursor: pointer; margin-top: 10px; }
         button:hover { background: #2ea043; }
-        .admin-link { display: block; margin-top: 20px; color: #8b949e; font-size: 12px; text-decoration: none; }
-        .admin-link:hover { color: #58a6ff; }
         #status { margin-top: 15px; font-weight: bold; color: #e3b341; }
     </style>
 </head>
 <body>
     <div class="card">
-        <h1>Kluvert Soccer Arena ⚽</h1>
+        <h1>Player Stake Dashboard ⚽</h1>
         
         <div class="form-group">
             <label for="mode">Select Game Mode:</label>
@@ -221,7 +241,7 @@ app.get('/', async (req, res) => {
 });
 
 // =================================================================
-// 2. SECURED ADMIN DASHBOARD ROUTE (Password Locked)
+// 3. SECURED ADMIN DASHBOARD ROUTE (Password Locked)
 // =================================================================
 app.get('/admin', async (req, res) => {
     const secretPass = req.query.key;
@@ -273,7 +293,7 @@ app.get('/admin', async (req, res) => {
             </div>
             <button type="submit">SAVE NEW STAKES 💾</button>
         </form>
-        <a href="/" class="back-link">⬅️ Back to Arena Home</a>
+        <a href="/stake-dash?key=kluvertStake2026" class="back-link">🚀 Go to Player Stake Dashboard</a>
     </div>
 </body>
 </html>
@@ -299,7 +319,7 @@ app.post('/admin/update', (req, res) => {
 });
 
 // =================================================================
-// 3. STAKE ENDPOINT
+// 4. STAKE ENDPOINT
 // =================================================================
 app.post('/stake', async (req, res) => {
   const { phone, network, amount } = req.body;
@@ -317,7 +337,7 @@ app.post('/stake', async (req, res) => {
 });
 
 // =================================================================
-// 4. AUTOMATED MACHINE MATCH-RESULT & OWNER PROFIT SPLIT ENDPOINT
+// 5. AUTOMATED MACHINE MATCH-RESULT & OWNER PROFIT SPLIT ENDPOINT
 // =================================================================
 app.post('/api/match-result', async (req, res) => {
     const { matchToken, player1Score, player2Score, isPenalty, isGrandFinal, runnerUpNetwork } = req.body;
