@@ -22,6 +22,7 @@ const db = new sqlite3.Database('./kluvert_arena.db', (err) => {
                 if (!err) {
                     db.run(`INSERT OR IGNORE INTO settings (key, value) VALUES ('quick_stake', '4')`);
                     db.run(`INSERT OR IGNORE INTO settings (key, value) VALUES ('cl_stake', '150')`);
+                    db.run(`INSERT OR IGNORE INTO settings (key, value) VALUES ('admin_warning', '')`);
                 }
             });
 
@@ -101,7 +102,7 @@ async function sendWinnerPayout(phone, network, prizeAmount, playerName) {
         source: "balance",
         amount: Math.round(prizeAmount * 100),
         recipient: recipientCode,
-        reason: `Prize payout for winning match on Kluvert Arena`
+        reason: `Prize payout for winning match on Kluvert Soccer Arena`
       },
       { headers: { Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}` } }
     );
@@ -114,11 +115,36 @@ async function sendWinnerPayout(phone, network, prizeAmount, playerName) {
 }
 
 // =================================================================
+// SYSTEM STATUS API (Online/Offline & Warnings)
+// =================================================================
+app.get('/api/system-status', async (req, res) => {
+    const warning = await getSetting('admin_warning') || "";
+    res.json({
+        isOnline: true,
+        warning: warning
+    });
+});
+
+app.post('/api/admin/warning', express.json(), async (req, res) => {
+    const { key, message } = req.body;
+    if (key !== 'kluvertSecret2026') {
+        return res.status(403).json({ error: 'Unauthorized' });
+    }
+    db.run(`UPDATE settings SET value = ? WHERE key = 'admin_warning'`, [message || ""], (err) => {
+        if (err) {
+            return res.status(500).json({ success: false });
+        }
+        res.json({ success: true, warning: message || "" });
+    });
+});
+
+// =================================================================
 // 1. PUBLIC HOME PAGE
 // =================================================================
 app.get('/', (req, res) => {
   res.send(`
     <body style="background:#0d1117; color:#fff; font-family:Arial; text-align:center; padding-top:50px;">
+        <title>Kluvert Soccer Arena</title>
         <h1>⚽ KLUVERT SOCCER ARENA</h1>
         <p style="color:#8b949e;">Welcome! Please use your authorized access link to enter the staking dashboard.</p>
     </body>
@@ -135,6 +161,7 @@ app.get('/stake-dash', async (req, res) => {
     if (secretPass !== STAKE_PASSWORD) {
         return res.status(403).send(`
             <body style="background:#0d1117; color:#fff; font-family:Arial; text-align:center; padding-top:50px;">
+                <title>Access Denied - Kluvert Soccer Arena</title>
                 <h1 style="color:#f85149;">Access Denied! 🚫</h1>
                 <p style="color:#8b949e;">You are not authorized to view the player stake dashboard.</p>
             </body>
@@ -150,9 +177,13 @@ app.get('/stake-dash', async (req, res) => {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>KLUVERT SOCCER ARENA - Stake Dashboard</title>
+    <title>Kluvert Soccer Arena - Stake Dashboard</title>
     <style>
-        body { font-family: Arial, sans-serif; background-color: #0d1117; color: #fff; text-align: center; padding: 40px 20px; }
+        body { font-family: Arial, sans-serif; background-color: #0d1117; color: #fff; text-align: center; padding: 20px; margin: 0; }
+        .top-bar { display: flex; justify-content: space-between; align-items: center; max-width: 450px; margin: 0 auto 15px auto; padding: 0 5px; }
+        #status-indicator { display: flex; align-items: center; gap: 6px; font-size: 13px; color: #8b949e; }
+        #status-dot { width: 9px; height: 9px; border-radius: 50%; background-color: gray; }
+        #admin-warning-banner { display: none; background-color: #d29922; color: #000; padding: 10px; border-radius: 6px; margin: 0 auto 15px auto; max-width: 450px; font-weight: bold; font-size: 14px; text-align: center; box-sizing: border-box; }
         .card { background: #161b22; border: 1px solid #30363d; padding: 30px; border-radius: 12px; max-width: 450px; margin: 0 auto; box-shadow: 0 4px 12px rgba(0,0,0,0.5); }
         h1 { color: #58a6ff; font-size: 24px; margin-bottom: 20px; text-transform: uppercase; }
         .form-group { margin-bottom: 15px; text-align: left; }
@@ -166,8 +197,17 @@ app.get('/stake-dash', async (req, res) => {
     </style>
 </head>
 <body>
+    <div class="top-bar">
+        <div id="status-indicator">
+            <span id="status-dot"></span>
+            <span id="status-text">Connecting...</span>
+        </div>
+    </div>
+
+    <div id="admin-warning-banner"></div>
+
     <div class="card" id="main-card">
-        <h1>Player Stake Dashboard ⚽</h1>
+        <h1>Kluvert Soccer Arena ⚽</h1>
         
         <div class="form-group">
             <label for="mode">Select Game Mode:</label>
@@ -210,6 +250,40 @@ app.get('/stake-dash', async (req, res) => {
             const mode = document.getElementById('mode').value;
             document.getElementById('amount').value = stakes[mode];
         }
+
+        async function checkSystemStatus() {
+            try {
+                const res = await fetch('/api/system-status');
+                const data = await res.json();
+
+                const dot = document.getElementById('status-dot');
+                const text = document.getElementById('status-text');
+                if (dot && text) {
+                    dot.style.backgroundColor = data.isOnline ? '#3fb950' : '#f85149';
+                    text.textContent = data.isOnline ? 'Arena Online' : 'Arena Offline';
+                }
+
+                const banner = document.getElementById('admin-warning-banner');
+                if (banner) {
+                    if (data.warning && data.warning.trim() !== "") {
+                        banner.textContent = "⚠️ NOTICE: " + data.warning;
+                        banner.style.display = 'block';
+                    } else {
+                        banner.style.display = 'none';
+                    }
+                }
+            } catch (e) {
+                const dot = document.getElementById('status-dot');
+                const text = document.getElementById('status-text');
+                if (dot && text) {
+                    dot.style.backgroundColor = '#f85149';
+                    text.textContent = 'Arena Offline';
+                }
+            }
+        }
+
+        checkSystemStatus();
+        setInterval(checkSystemStatus, 5000);
 
         async function placeStake() {
             const phone = document.getElementById('phone').value;
@@ -268,6 +342,7 @@ app.get('/admin', async (req, res) => {
     if (secretPass !== ADMIN_PASSWORD) {
         return res.status(403).send(`
             <body style="background:#0d1117; color:#fff; font-family:Arial; text-align:center; padding-top:50px;">
+                <title>Access Denied - Kluvert Soccer Arena</title>
                 <h1 style="color:#f85149;">Access Denied! 🚫</h1>
                 <p style="color:#8b949e;">You are not authorized to view the admin dashboard.</p>
             </body>
@@ -276,6 +351,7 @@ app.get('/admin', async (req, res) => {
 
     const quickStake = await getSetting('quick_stake');
     const clStake = await getSetting('cl_stake');
+    const adminWarning = await getSetting('admin_warning') || "";
 
     res.send(`
 <!DOCTYPE html>
@@ -283,23 +359,28 @@ app.get('/admin', async (req, res) => {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Admin Dashboard - Kluvert Arena</title>
+    <title>Admin Dashboard - Kluvert Soccer Arena</title>
     <style>
         body { font-family: Arial, sans-serif; background-color: #0d1117; color: #fff; text-align: center; padding: 40px 20px; }
         .card { background: #161b22; border: 1px solid #30363d; padding: 30px; border-radius: 12px; max-width: 450px; margin: 0 auto; box-shadow: 0 4px 12px rgba(0,0,0,0.5); text-align: left; }
         h1 { color: #f85149; font-size: 22px; margin-bottom: 20px; text-transform: uppercase; text-align: center; }
+        h3 { color: #58a6ff; font-size: 16px; margin-top: 20px; border-top: 1px solid #30363d; padding-top: 15px; }
         .form-group { margin-bottom: 15px; }
         label { display: block; margin-bottom: 5px; font-size: 14px; color: #8b949e; }
         input { width: 100%; padding: 12px; border-radius: 6px; border: 1px solid #30363d; background: #0d1117; color: #fff; box-sizing: border-box; font-size: 16px; }
         button { width: 100%; padding: 14px; background: #1f6feb; color: #fff; border: none; border-radius: 6px; font-weight: bold; font-size: 16px; cursor: pointer; margin-top: 10px; }
         button:hover { background: #388bfd; }
+        .warning-btn { background: #d29922; color: #000; }
+        .warning-btn:hover { background: #e3b341; }
         .back-link { display: block; margin-top: 20px; color: #8b949e; font-size: 12px; text-decoration: none; text-align: center; }
         .back-link:hover { color: #58a6ff; }
+        #warning-status { margin-top: 10px; font-size: 13px; text-align: center; font-weight: bold; }
     </style>
 </head>
 <body>
     <div class="card">
         <h1>⚙️ Admin Control Panel</h1>
+        
         <form action="/admin/update?key=kluvertSecret2026" method="POST">
             <div class="form-group">
                 <label for="quick_stake">Quick Match Stake (GHS):</label>
@@ -311,8 +392,43 @@ app.get('/admin', async (req, res) => {
             </div>
             <button type="submit">SAVE NEW STAKES 💾</button>
         </form>
+
+        <h3>⚠️ Broadcast Warning Banner</h3>
+        <div class="form-group">
+            <label for="warning_message">Warning Text (Leave empty to clear):</label>
+            <input type="text" id="warning_message" value="${adminWarning}" placeholder="e.g. Server maintenance soon!" />
+        </div>
+        <button type="button" class="warning-btn" onclick="updateWarning()">PUBLISH WARNING 📢</button>
+        <div id="warning-status"></div>
+
         <a href="/stake-dash?key=kluvertStake2026" class="back-link">🚀 Go to Player Stake Dashboard</a>
     </div>
+
+    <script>
+        async function updateWarning() {
+            const message = document.getElementById('warning_message').value;
+            const statusDiv = document.getElementById('warning-status');
+            
+            try {
+                const res = await fetch('/api/admin/warning', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ key: 'kluvertSecret2026', message })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    statusDiv.style.color = '#3fb950';
+                    statusDiv.innerText = 'Warning banner updated successfully!';
+                } else {
+                    statusDiv.style.color = '#f85149';
+                    statusDiv.innerText = 'Failed to update warning.';
+                }
+            } catch (e) {
+                statusDiv.style.color = '#f85149';
+                statusDiv.innerText = 'Network error updating warning.';
+            }
+        }
+    </script>
 </body>
 </html>
     `);
