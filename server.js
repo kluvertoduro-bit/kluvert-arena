@@ -179,7 +179,7 @@ app.get('/stake-dash', async (req, res) => {
 
         <div class="form-group">
             <label for="phone">MoMo Number:</label>
-            <input type="tel" id="phone" value="0591538085" placeholder="0591538085" required />
+            <input type="tel" id="phone" value="" placeholder="e.g. 0241234567" required />
         </div>
 
         <div class="form-group">
