@@ -23,6 +23,9 @@ const db = new sqlite3.Database('./kluvert_arena.db', (err) => {
                     db.run(`INSERT OR IGNORE INTO settings (key, value) VALUES ('quick_stake', '4')`);
                     db.run(`INSERT OR IGNORE INTO settings (key, value) VALUES ('cl_stake', '150')`);
                     db.run(`INSERT OR IGNORE INTO settings (key, value) VALUES ('admin_warning', '')`);
+                    db.run(`INSERT OR IGNORE INTO settings (key, value) VALUES ('whatsapp_link', '')`);
+                    db.run(`INSERT OR IGNORE INTO settings (key, value) VALUES ('telegram_link', '')`);
+                    db.run(`INSERT OR IGNORE INTO settings (key, value) VALUES ('tiktok_link', '')`);
                 }
             });
 
@@ -115,13 +118,20 @@ async function sendWinnerPayout(phone, network, prizeAmount, playerName) {
 }
 
 // =================================================================
-// SYSTEM STATUS API (Online/Offline & Warnings)
+// SYSTEM STATUS & SOCIAL LINKS API
 // =================================================================
 app.get('/api/system-status', async (req, res) => {
     const warning = await getSetting('admin_warning') || "";
+    const whatsapp = await getSetting('whatsapp_link') || "";
+    const telegram = await getSetting('telegram_link') || "";
+    const tiktok = await getSetting('tiktok_link') || "";
+
     res.json({
         isOnline: true,
-        warning: warning
+        warning: warning,
+        whatsapp: whatsapp,
+        telegram: telegram,
+        tiktok: tiktok
     });
 });
 
@@ -193,6 +203,11 @@ app.get('/stake-dash', async (req, res) => {
         button:hover { background: #2ea043; }
         .parsec-btn { background: #1f6feb; display: inline-block; padding: 16px; text-decoration: none; color: #fff; border-radius: 6px; font-weight: bold; margin-top: 15px; width: 100%; box-sizing: border-box; }
         .parsec-btn:hover { background: #388bfd; }
+        .social-container { display: flex; justify-content: space-between; gap: 8px; margin-top: 20px; }
+        .social-btn { flex: 1; padding: 10px; border-radius: 6px; text-decoration: none; color: #fff; font-weight: bold; font-size: 12px; text-align: center; display: none; }
+        .whatsapp { background: #25d366; }
+        .telegram { background: #0088cc; }
+        .tiktok { background: #000; border: 1px solid #30363d; }
         #status { margin-top: 15px; font-weight: bold; color: #e3b341; }
     </style>
 </head>
@@ -200,7 +215,7 @@ app.get('/stake-dash', async (req, res) => {
     <div class="top-bar">
         <div id="status-indicator">
             <span id="status-dot"></span>
-            <span id="status-text">Connecting...</span>
+            <span id="status-text">Checking status...</span>
         </div>
     </div>
 
@@ -238,6 +253,13 @@ app.get('/stake-dash', async (req, res) => {
 
         <button onclick="placeStake()">STAKE & FIND OPPONENT 🚀</button>
         <div id="status"></div>
+
+        <!-- DYNAMIC SOCIAL LINKS -->
+        <div class="social-container">
+            <a id="wa-btn" href="#" class="social-btn whatsapp" target="_blank">WhatsApp</a>
+            <a id="tg-btn" href="#" class="social-btn telegram" target="_blank">Telegram</a>
+            <a id="tk-btn" href="#" class="social-btn tiktok" target="_blank">TikTok</a>
+        </div>
     </div>
 
     <script>
@@ -266,12 +288,38 @@ app.get('/stake-dash', async (req, res) => {
                 const banner = document.getElementById('admin-warning-banner');
                 if (banner) {
                     if (data.warning && data.warning.trim() !== "") {
-                        banner.textContent = "⚠️ NOTICE: " + data.warning;
+                        banner.textContent = "⚠️ WARNING: " + data.warning;
                         banner.style.display = 'block';
                     } else {
                         banner.style.display = 'none';
                     }
                 }
+
+                // Handle Social Links Dynamically
+                const waBtn = document.getElementById('wa-btn');
+                if (data.whatsapp && data.whatsapp.trim() !== "") {
+                    waBtn.href = data.whatsapp;
+                    waBtn.style.display = 'block';
+                } else {
+                    waBtn.style.display = 'none';
+                }
+
+                const tgBtn = document.getElementById('tg-btn');
+                if (data.telegram && data.telegram.trim() !== "") {
+                    tgBtn.href = data.telegram;
+                    tgBtn.style.display = 'block';
+                } else {
+                    tgBtn.style.display = 'none';
+                }
+
+                const tkBtn = document.getElementById('tk-btn');
+                if (data.tiktok && data.tiktok.trim() !== "") {
+                    tkBtn.href = data.tiktok;
+                    tkBtn.style.display = 'block';
+                } else {
+                    tkBtn.style.display = 'none';
+                }
+
             } catch (e) {
                 const dot = document.getElementById('status-dot');
                 const text = document.getElementById('status-text');
@@ -352,6 +400,9 @@ app.get('/admin', async (req, res) => {
     const quickStake = await getSetting('quick_stake');
     const clStake = await getSetting('cl_stake');
     const adminWarning = await getSetting('admin_warning') || "";
+    const whatsappLink = await getSetting('whatsapp_link') || "";
+    const telegramLink = await getSetting('telegram_link') || "";
+    const tiktokLink = await getSetting('tiktok_link') || "";
 
     res.send(`
 <!DOCTYPE html>
@@ -372,9 +423,11 @@ app.get('/admin', async (req, res) => {
         button:hover { background: #388bfd; }
         .warning-btn { background: #d29922; color: #000; }
         .warning-btn:hover { background: #e3b341; }
+        .social-btn { background: #238636; }
+        .social-btn:hover { background: #2ea043; }
         .back-link { display: block; margin-top: 20px; color: #8b949e; font-size: 12px; text-decoration: none; text-align: center; }
         .back-link:hover { color: #58a6ff; }
-        #warning-status { margin-top: 10px; font-size: 13px; text-align: center; font-weight: bold; }
+        #warning-status, #social-status { margin-top: 10px; font-size: 13px; text-align: center; font-weight: bold; }
     </style>
 </head>
 <body>
@@ -396,10 +449,26 @@ app.get('/admin', async (req, res) => {
         <h3>⚠️ Broadcast Warning Banner</h3>
         <div class="form-group">
             <label for="warning_message">Warning Text (Leave empty to clear):</label>
-            <input type="text" id="warning_message" value="${adminWarning}" placeholder="e.g. Server maintenance soon!" />
+            <input type="text" id="warning_message" value="${adminWarning}" placeholder="e.g. Do not send money to any player!" />
         </div>
         <button type="button" class="warning-btn" onclick="updateWarning()">PUBLISH WARNING 📢</button>
         <div id="warning-status"></div>
+
+        <h3>🌐 Manage Social Links</h3>
+        <div class="form-group">
+            <label for="whatsapp_link">WhatsApp Link:</label>
+            <input type="text" id="whatsapp_link" value="${whatsappLink}" placeholder="https://chat.whatsapp.com/..." />
+        </div>
+        <div class="form-group">
+            <label for="telegram_link">Telegram Link:</label>
+            <input type="text" id="telegram_link" value="${telegramLink}" placeholder="https://t.me/..." />
+        </div>
+        <div class="form-group">
+            <label for="tiktok_link">TikTok Link:</label>
+            <input type="text" id="tiktok_link" value="${tiktokLink}" placeholder="https://tiktok.com/@..." />
+        </div>
+        <button type="button" class="social-btn" onclick="updateSocials()">SAVE SOCIAL LINKS 🔗</button>
+        <div id="social-status"></div>
 
         <a href="/stake-dash?key=kluvertStake2026" class="back-link">🚀 Go to Player Stake Dashboard</a>
     </div>
@@ -428,10 +497,52 @@ app.get('/admin', async (req, res) => {
                 statusDiv.innerText = 'Network error updating warning.';
             }
         }
+
+        async function updateSocials() {
+            const whatsapp = document.getElementById('whatsapp_link').value;
+            const telegram = document.getElementById('telegram_link').value;
+            const tiktok = document.getElementById('tiktok_link').value;
+            const statusDiv = document.getElementById('social-status');
+            
+            try {
+                const res = await fetch('/api/admin/socials', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ key: 'kluvertSecret2026', whatsapp, telegram, tiktok })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    statusDiv.style.color = '#3fb950';
+                    statusDiv.innerText = 'Social links updated successfully!';
+                } else {
+                    statusDiv.style.color = '#f85149';
+                    statusDiv.innerText = 'Failed to update social links.';
+                }
+            } catch (e) {
+                statusDiv.style.color = '#f85149';
+                statusDiv.innerText = 'Network error updating social links.';
+            }
+        }
     </script>
 </body>
 </html>
     `);
+});
+
+app.post('/api/admin/socials', express.json(), async (req, res) => {
+    const { key, whatsapp, telegram, tiktok } = req.body;
+    if (key !== 'kluvertSecret2026') {
+        return res.status(403).json({ error: 'Unauthorized' });
+    }
+
+    db.run(`UPDATE settings SET value = ? WHERE key = 'whatsapp_link'`, [whatsapp || ""]);
+    db.run(`UPDATE settings SET value = ? WHERE key = 'telegram_link'`, [telegram || ""]);
+    db.run(`UPDATE settings SET value = ? WHERE key = 'tiktok_link'`, [tiktok || ""], (err) => {
+        if (err) {
+            return res.status(500).json({ success: false });
+        }
+        res.json({ success: true });
+    });
 });
 
 app.post('/admin/update', (req, res) => {
